@@ -99,7 +99,7 @@ class IRC_Connection(threading.Thread):
       if self.channel_dict.has_key(split_line[2]):
         self.channel_dict[split_line[2]].parse_message(line)
       elif split_line[3] == ':\001VERSION\001':
-	#CTCP Version request
+        #CTCP Version request
         ctcp_version_source_nick = split_line[0][1:].split('!~')[0] 
         version_reply = 'NOTICE '
         version_reply += ctcp_version_source_nick
