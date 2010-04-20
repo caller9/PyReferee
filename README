@@ -1,0 +1,20 @@
+PyReferee - Python IRC Referee Bot
+
+#~ This program is free software; you can redistribute it and/or modify
+#~ it under the terms of the GNU General Public License as published by
+#~ the Free Software Foundation; version 2 of the License.
+#~
+#~ This program is distributed in the hope that it will be useful,
+#~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#~ GNU General Public License for more details.
+
+Usage:
+python pyreferee.py
+
+Configuration:
+The config/servers.cfg file lists servers and channels to join on those servers.
+
+The config/default_channel.cfg is the base config for any channel listed in servers.cfg. It will be used to create [servername][channe].cfg files
+which can be customized to the channel in question. Or you can just manually copy or create [servername][channel].cfg files. Though
+this is not recommended because you could omit vital information.
