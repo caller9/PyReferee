@@ -86,7 +86,7 @@ if __name__ == '__main__':
       #Check that all connection threads are running, restart if needed
       already_slept = 0
       for IRC in IRC_Connection_List:
-        if (not IRC.is_alive() and (IRC.get_reconnect_wait() > 0)):
+        if (not IRC.isAlive() and (IRC.get_reconnect_wait() > 0)):
           logging.warning ('Thread ' + IRC.get_server_name() 
             + ' died. Restarting in ' + `IRC.get_reconnect_wait()` + ' seconds.')
           

@@ -112,8 +112,10 @@ class IRC_Channel:
       self.config.read(self.channel_config_file)
     else:
       self.config.read('config/default_channel.cfg')
-      self.logger.info("Creating configuration " + self.channel_config_file)
-      with open(self.channel_config_file, 'wb') as configfile:
+      self.logger.info('Creating configuration ' + self.channel_config_file)
+      try:
+        configfile = open(self.channel_config_file, 'wb')
         self.config.write(configfile)
-    
+      except:
+	self.logger.error('Cannot create ' + self.channel_config_file)    
     

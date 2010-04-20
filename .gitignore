@@ -1,3 +1,4 @@
+config/*#*.cfg
 modules/*.pyc
 modules/IRC/*.pyc
 log/*.log
