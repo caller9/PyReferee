@@ -117,5 +117,5 @@ class IRC_Channel:
         configfile = open(self.channel_config_file, 'wb')
         self.config.write(configfile)
       except:
-	self.logger.error('Cannot create ' + self.channel_config_file)    
+        self.logger.error('Cannot create ' + self.channel_config_file)    
     
