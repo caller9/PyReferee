@@ -22,7 +22,7 @@ import IRC_Channel
 
 class IRC_Connection(threading.Thread):  
   def __init__(self, server_name, port, nick, realname, nickserv_command, channel_csv, logging_level,
-    log_size, log_max, reconnect_wait):
+    log_size, log_max, reconnect_wait, version):
     
     #Configure thread initialization and set as non daemon (default)
     threading.Thread.__init__(self)    
@@ -36,6 +36,7 @@ class IRC_Connection(threading.Thread):
     self.realname = realname
     self.nickserv_command = nickserv_command
     self.reconnect_wait = reconnect_wait
+    self.version = version
     
     #Create channel handlers for multiple channels
     channel_list = channel_csv.strip().split(',')        
@@ -97,6 +98,14 @@ class IRC_Connection(threading.Thread):
       #Match channel in list of joined channels and parse              
       if self.channel_dict.has_key(split_line[2]):
         self.channel_dict[split_line[2]].parse_message(line)
+      elif split_line[3] == ':\001VERSION\001':
+	#CTCP Version request
+        ctcp_version_source_nick = split_line[0][1:].split('!~')[0] 
+        version_reply = 'NOTICE '
+        version_reply += ctcp_version_source_nick
+        version_reply += ' :\001VERSION PyReferee ' + self.version + ' \001\n'
+        self.logger.info('Replied to CTCP Version request from ' + ctcp_version_source_nick)
+        self.safe_send(version_reply)
       else:
         #Private message, no/invalid channel context
         self.logger.debug("Ignored PM: "+line)

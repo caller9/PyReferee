@@ -23,6 +23,8 @@ import threading
 import signal
 
 if __name__ == '__main__':
+  VERSION_NUMBER = '0.10'
+
   config = ConfigParser.RawConfigParser()
   
   #logging_level = logging.DEBUG
@@ -68,7 +70,8 @@ if __name__ == '__main__':
       logging_level,
       config.getint(server,'log_size'),
       config.getint(server,'log_max'),
-      config.getint(server,'reconnect_wait')
+      config.getint(server,'reconnect_wait'),
+      VERSION_NUMBER
       )
     IRC.start()
     
@@ -79,7 +82,7 @@ if __name__ == '__main__':
   #all threads being stopped with none waiting on a restart
   app_running = True
   
-  logging.info ('PyReferee Bot running... CTRL+C to shutdown')
+  logging.info ('PyReferee Bot v' + VERSION_NUMBER + ' running... CTRL+C to shutdown')
   
   while (app_running):
     try:        
