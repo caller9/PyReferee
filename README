@@ -17,10 +17,12 @@ Configuration:
 The config/servers.cfg file lists servers and channels to 
 join on those servers.
 
-The config/default_channel.cfg is the base config for any 
-channel listed in servers.cfg. It will be used to 
-create [servername][channe].cfg files which can be customized 
-to the channel in question. Or you can just manually copy or 
-create [servername][channel].cfg files. Though this is not 
-recommended because you could omit vital information.
+The config/default_channel.cfg is the base config for any channel 
+listed in servers.cfg. It will be used to create [servername][channel].cfg 
+files which can be customized to the channel in question. Or you can manually 
+copy or create [servername][channel].cfg files. Though this is not recommended
+ because you could omit vital information.
 
+The config system does not fully validate the configuration files, especially
+the channel config files. For the most part missing configuration values will
+cause an exception. 
