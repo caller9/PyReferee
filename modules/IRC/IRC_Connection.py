@@ -146,6 +146,3 @@ class IRC_Connection(threading.Thread):
     #Something has broken or exit requested, close socket and end thread
     self.IRC_socket.close()
 
-if __name__ == '__main__':
-  IRC = IRC_Connection('localhost',6667,'justatest','Fake Name','foo','#faketest',logging.DEBUG,20480,5)
-  IRC.parse_message('PING :calvino.freenode.net')
