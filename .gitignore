@@ -1,3 +1,4 @@
 modules/*.pyc
 modules/IRC/*.pyc
-log/*
+log/*.log
+log/*.log.*
