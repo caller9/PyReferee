@@ -31,4 +31,4 @@ class IRC_Flood:
         ((datetime.datetime.utcnow() - nick_messages[-1 * self.flood_limit][0]).seconds < self.flood_time)):
         #Triggered limit
         reason = 'Sent more than ' + `self.flood_limit` + ' messages in ' + `self.flood_time` + ' seconds. ' 
-        self.parent.yellow_card(nick_obj,reason)
+        self.parent.send_card_level(nick_obj,reason,0)

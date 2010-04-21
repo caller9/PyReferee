@@ -1,9 +1,9 @@
 #~ Created by caller9.com as part of the PyReferee application
 #~ This houses all of the enforcement operations and configuration
-#~ IRC_Channel will proxy the enforcement functions [[yellow|red]_card|permaban] (channel, nick_obj, reason)
+#~ IRC_Channel calls send_card_level to escalate through penalties for a nick
 #~
 #~ Created 2010-04-19
-#~ Modified 2010-04-19
+#~ Modified 2010-04-20
 
 #~ This program is free software; you can redistribute it and/or modify
 #~ it under the terms of the GNU General Public License as published by
@@ -15,36 +15,43 @@
 #~ GNU General Public License for more details.
 
 import threading
+import Card
 
 class IRC_Enforcer:
   def __init__(self,parent,config):
     self.timer_dict = dict()
     self.parent = parent
     
-    self.yellow_card_message = config.get('yellow_card','message')
-    self.yellow_card_action = config.get('yellow_card','action')
-    self.yellow_card_revoke = config.get('yellow_card','revoke')
-    self.yellow_card_duration = config.getint('yellow_card','duration')
-    self.yellow_card_limit = config.getint('yellow_card','limit')
-    self.yellow_card_max_age = config.getint('yellow_card','max_age')
-        
-    self.red_card_message = config.get('red_card','message')
-    self.red_card_action = config.get('red_card','action')
-    self.red_card_revoke = config.get('red_card','revoke')
-    self.red_card_duration = config.getint('red_card','duration')
-    self.red_card_limit = config.getint('red_card','limit')
-    self.red_card_max_age = config.getint('red_card','max_age')
-        
-    self.permaban_message = config.get('permaban','message')
-    self.permaban_action = config.get('permaban','action')
-  
+    self.card_list = []
+    self.card_dict = dict()
+    
+    self.load_config (config)
+      
   def shutdown (self):
+    #Kill any pending timers
     for timer in self.timer_dict.itervalues():
       timer.cancel()
   
   def parse_command(self, nick_obj, command):
     if (command == 'cards'):
-      self.parent.channel_send(nick_obj.get_nick() + ': ' + nick_obj.format_counters(self.yellow_card_limit,self.red_card_limit))
+      self.parent.channel_send(nick_obj.get_nick() + ': ' + nick_obj.format_counters(self.card_dict))
+      
+    if (nick_obj.get_is_admin()):
+      command_split = command.split()
+      
+      if (len(command_split) > 1):
+        tmp_nick_obj = self.parent.get_nick_obj(command_split[1])
+        if not tmp_nick_obj:
+          self.parent.channel_send(nick_obj.get_nick() + ': ' + command_split[1] + ' has not spoken since startup.')
+          return
+      
+        if (command_split[0] == 'clear_penalty') and (len(command_split) == 3):
+          tmp_nick_obj.clear_penalty(command_split[2])
+          self.parent.channel_send(nick_obj.get_nick() + ': Cleared ' + command_split[2] + ' cards for ' + command_split[1])
+        
+        if (command_split[0] == 'cards') and (len(command_split) == 2):
+          self.parent.channel_send(nick_obj.get_nick() + ': ' + command_split[1] + ' : ' + tmp_nick_obj.format_counters(self.card_dict))
+        
   
   def fill_template(self, template, variables):
     #Replace strings in template with nested tuples from variables
@@ -56,151 +63,107 @@ class IRC_Enforcer:
     return template
   
   def kill_timer(self, nick):
+    #Kill a revoke timer and nuke the thread
     if self.timer_dict.has_key(nick):
       self.timer_dict[nick].cancel()
       del self.timer_dict[nick]
+ 
+  def enforce_in_progress (self, nick_obj):
+    #Check to see if a revoke timer is waiting.
+    return self.timer_dict.has_key(nick_obj.get_nick())
   
-  def yellow_card(self, channel, nick_obj, reason):
-    #Nick has earned a yellow card
+  def send_card_level (self, channel, nick_obj, reason, level):
+    #Determine if the user has gone over the limit for the card color at this level
+    #Escalate to next level if possible or issue send_card enforcement command
     
-    #Exclude admins
-    if (nick_obj.get_is_admin()):
-      self.parent.logger.info('Skipping Yellow Card for ' + nick_obj.get_nick() + ' (admin)')
-      return
+    #Infinite loop stopper
+    recursion_ok = True
+    
+    #Limit and recursion safety valve. Negative level means maximum level
+    if (level > len(self.card_list)) or (level < 0):
+      level = len(self.card_list) - 1
+      recursion_ok = False
     
     #Check that enforcement is not already in progress
-    if (self.timer_dict.has_key(nick_obj.get_nick())):
+    if self.enforce_in_progress(nick_obj):
       return
     
-    nick_obj.clean_card_queues(self.yellow_card_max_age, self.red_card_max_age)
-    nick_obj.add_yellow()
+    card = self.card_list[level]
     
-    if (nick_obj.get_yellow_count() > self.yellow_card_limit):        
-      nick_obj.clear_yellow()
-      self.red_card(channel, nick_obj, reason)
+    nick_obj.clean_penalty_queues(self.card_dict)
+    nick_obj.add_penalty(card)
+    
+    if (recursion_ok) and (self.card_dict[card].limit > 0) and (nick_obj.get_penalty_count(card) > self.card_dict[card].limit):
+      #If Over Limit recursively escalate
+      reason += 'Exceeded ' + card + ' card limit. '
+      nick_obj.clear_penalty(card)
+      self.send_card_level (channel, nick_obj, reason, level + 1)
     else:
-      #Yellow Card        
-      self.parent.logger.info('Yellow Card for ' + nick_obj.get_nick() + ' for ' + reason)
-      
-      #Expand reason
-      reason += 'Current count: ' + nick_obj.format_counters(self.yellow_card_limit,self.red_card_limit) + '. '      
-      reason += 'Expires in ' + `self.yellow_card_duration` + ' seconds.'        
-      
-      #Start revocation timer
-      self.kill_timer(nick_obj.get_nick())
-      self.timer_dict[nick_obj.get_nick()] = threading.Timer(self.yellow_card_duration, self.revoke_yellow, args = [channel, nick_obj])
-      self.timer_dict[nick_obj.get_nick()].start()
-      
-      #Send message command
-      self.parent.channel_send(self.fill_template(self.yellow_card_message,
-          (('$nick',nick_obj.get_nick()),
-          ('$reason',reason))
-          )
-        )
-      
-      #Send action command
-      self.parent.safe_send(self.fill_template(self.yellow_card_action,
-          (('$channel',channel),
-          ('$nick',nick_obj.get_nick()),
-          ('$reason',reason))
-          )
-          + '\n'
-        )
-      
+      #If Under Limit, enforce this penalty
+      self.send_card (channel, nick_obj, reason, card)
   
-  def revoke_yellow(self, channel, nick_obj):
-    self.parent.safe_send(self.fill_template(self.yellow_card_revoke,
-        (('$channel',channel),
-        ('$nick',nick_obj.get_nick()))
-        )
-        + '\n'
-      )
-    self.kill_timer(nick_obj.get_nick())
-
-  def red_card(self, channel, nick_obj, reason):
-    #Nick has earned a red card
+  def send_card (self, channel, nick_obj, reason, card):
+    #Perform actual enforcment actions and optionally schedule revoke
     
     #Exclude admins
     if (nick_obj.get_is_admin()):
-      self.parent.logger.info('Skipping Red Card for ' + nick_obj.get_nick() + ' (admin)')
+      self.parent.logger.info('Skipping ' + card + ' card for ' + nick_obj.get_nick() + ' (admin)')
       return
     
     #Check that enforcement is not already in progress
-    if (self.timer_dict.has_key(nick_obj.get_nick())):
+    if self.enforce_in_progress(nick_obj):
       return
         
-    nick_obj.clean_card_queues(self.yellow_card_max_age, self.red_card_max_age)
-    nick_obj.add_red()
-      
-    if (nick_obj.get_red_count() > self.red_card_limit):      
-      self.permaban(channel, nick_obj, reason)
-          
-    else:
-      #Red Card
-      self.parent.logger.info('Red Card for ' + nick_obj.get_nick() + ' for ' + reason)
-      
-      #Expand Reason
-      reason += 'More than ' + `self.yellow_card_limit` + ' yellow cards in ' + `self.yellow_card_max_age` + ' days. '
-      reason += 'Current count: ' + nick_obj.format_counters(self.yellow_card_limit,self.red_card_limit) + '. '      
-      reason += 'Expires in ' + `self.red_card_duration / 3600` + ' hours.'        
-      
+    self.parent.logger.info(card + ' card for ' + nick_obj.get_nick() + ' : ' + reason)
+    
+    card_obj = self.card_dict[card]
+    
+    reason += 'Card Count: ' + nick_obj.format_counters(self.card_dict) + ' '
+    
+    #Schedule Revocation
+    if (card_obj.revoke != '') and (card_obj.duration != 0):
       #Start revocation timer
+      reason += 'This will expire in ' + `card_obj.duration` + ' seconds. '
       self.kill_timer(nick_obj.get_nick())
-      self.timer_dict[nick_obj.get_nick()] = threading.Timer(self.red_card_duration, self.revoke_red, args = [channel, nick_obj])
-      self.timer_dict[nick_obj.get_nick()].start()  
-      
-      #Send message command
-      self.parent.channel_send(self.fill_template(self.red_card_message,
-            (('$nick',nick_obj.get_nick()),
-            ('$reason',reason))
-            )
-          )
-      
-      #Send action command
-      self.parent.safe_send(self.fill_template(self.red_card_action,
-          (('$channel',channel),
-          ('$nick',nick_obj.get_nick()),
-          ('$reason',reason))
-          )
-          + '\n'
-        )
-      
-  
-  def revoke_red(self, channel, nick_obj):    
-    self.parent.safe_send(self.fill_template(self.red_card_revoke,
-        (('$channel',channel),
-        ('$nick',nick_obj.get_nick()))
-        )
-        + '\n'
-      )
-    self.kill_timer(nick_obj.get_nick())
-    
-  def permaban(self, channel, nick_obj, reason):
-    #Exclude admins
-    if (nick_obj.get_is_admin()):
-      self.parent.logger.info('Skipping Permaban for ' + nick_obj.get_nick() + ' (admin)')
-      return
-    
-    #Permaban requires OP to manually reverse so no revocation timer
-    self.parent.logger.info('Permaban for ' + nick_obj.get_nick() + ' for ' + reason)
-    
-    reason += 'More than ' + `self.red_card_limit` + ' red cards in ' + `self.red_card_max_age` + ' days. '
+      self.timer_dict[nick_obj.get_nick()] = threading.Timer(card_obj.duration, self.revoke_card, args = [channel, nick_obj, card])
+      self.timer_dict[nick_obj.get_nick()].start()
+    else:
+      reason += 'This will never expire. '
     
     #Send message command
-    self.parent.channel_send(self.fill_template(self.permaban_message,
+    self.parent.channel_send(self.fill_template(card_obj.message,
         (('$nick',nick_obj.get_nick()),
         ('$reason',reason))
         )
       )
     
     #Send action command
-    self.parent.safe_send(self.fill_template(self.permaban_action,
+    self.parent.safe_send(self.fill_template(card_obj.action,
         (('$channel',channel),
         ('$nick',nick_obj.get_nick()),
         ('$reason',reason))
         )
         + '\n'
+      )   
+  
+  def revoke_card (self, channel, nick_obj, card):
+    self.parent.safe_send(self.fill_template(self.card_dict[card].revoke,
+        (('$channel',channel),
+        ('$nick',nick_obj.get_nick()))
+        )
+        + '\n'
       )
+    self.kill_timer(nick_obj.get_nick())
   
-  
+  def load_config (self, config):
+    self.card_list = config.get('cards','card_progression_csv').split(',')
+    
+    for card in self.card_list:
+      self.card_dict[card] = Card.Card()
+      self.card_dict[card].message = config.get(card,'message')
+      self.card_dict[card].action = config.get(card,'action')
+      self.card_dict[card].revoke = config.get(card,'revoke')
+      self.card_dict[card].duration = config.getint(card,'duration')
+      self.card_dict[card].limit = config.getint(card,'limit')
+      self.card_dict[card].max_age = config.getint(card,'max_age')
     

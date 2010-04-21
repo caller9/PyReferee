@@ -4,7 +4,7 @@
 #~ specific messages.
 #~
 #~ Created 2010-04-18
-#~ Modified 2010-04-19
+#~ Modified 2010-04-20
 
 #~ This program is free software; you can redistribute it and/or modify
 #~ it under the terms of the GNU General Public License as published by
@@ -85,11 +85,16 @@ class IRC_Channel:
     message_split = message.split()
     
     if ((message_split[0].rstrip(':,') == self.parent.get_nick()) and (len(message_split) > 1)):
-      #This is addressed to the bot parse as command.
+      #This is addressed to the bot, parse as command.
       command = ' '.join(message_split[1:])
       
       for parser in self.command_parser_list:
         parser.parse_command(current_nick, command)
+  
+  def get_nick_obj(self, nick):
+    if (self.nick_dict.has_key(nick)):
+      return self.nick_dict[nick]
+    return None
   
   def channel_send(self, message):
     self.safe_send ('PRIVMSG ' + self.channel_name + ' :' + message + '\n')
@@ -97,16 +102,11 @@ class IRC_Channel:
   def safe_send(self, line):
     self.parent.safe_send(line)
   
-  def yellow_card(self, nick_obj, reason):
-    self.enforcer.yellow_card(self.channel_name, nick_obj, reason)
-  
-  def red_card(self, nick_obj, reason):
-    self.enforcer.yellow_card(self.channel_name, nick_obj, reason)
-  
-  def permaban(self, nick_obj, reason):
-    self.enforcer.yellow_card(self.channel_name, nick_obj, reason)
+  def send_card_level(self, nick_obj, reason, level):
+    self.enforcer.send_card_level(self.channel_name, nick_obj, reason, level)
   
   def loadConfig(self):
+    #Load channel specifc configuration or use default template
     if (os.path.isfile(self.channel_config_file)):
       self.logger.info("Reading configuration " + self.channel_config_file)
       self.config.read(self.channel_config_file)

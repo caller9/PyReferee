@@ -23,12 +23,12 @@ import threading
 import signal
 
 if __name__ == '__main__':
-  VERSION_NUMBER = '0.10'
+  VERSION_NUMBER = '0.20'
 
   config = ConfigParser.RawConfigParser()
   
-  #logging_level = logging.DEBUG
-  logging_level = logging.INFO
+  logging_level = logging.DEBUG
+  #logging_level = logging.INFO
   
   #logging.basicConfig(filename='log/pyreferee.log', level=logging_level)
   logging.basicConfig(level=logging_level, format='%(asctime)s %(levelname)s %(message)s')

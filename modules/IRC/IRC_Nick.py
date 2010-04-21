@@ -3,7 +3,7 @@
 #~ IRC_Channel will call parse_message(message) to enqueue into self.messages
 #~
 #~ Created 2010-04-18
-#~ Modified 2010-04-19
+#~ Modified 2010-04-20
 
 #~ This program is free software; you can redistribute it and/or modify
 #~ it under the terms of the GNU General Public License as published by
@@ -26,8 +26,10 @@ class IRC_Nick:
     self.is_admin = nick_is_admin
     self.instantiated = datetime.datetime.utcnow()
     
-    self.yellow_cards = deque()      
-    self.red_cards = deque()    
+    #Dictionary keyed by card (color string) containing a deque of timestamps 
+    #Timestamps represent when the penalty was given and are used for aging cards
+    self.penalty_dict = dict()
+    
     self.messages = deque()
 
   def clean_message_queue(self):
@@ -35,25 +37,29 @@ class IRC_Nick:
     while (len(self.messages) > 50):
       self.messages.popleft()
   
-  def clean_card_queues(self, yellow_card_max_age, red_card_max_age):
-    #Remove any cards that are outside of the sliding window max_age
+  def clean_penalty_queues(self, card_dict):
+    #Remove any penalty cards that are outside of the sliding window max_age
     
-    start_time = datetime.datetime.utcnow()
-    while ((len(self.yellow_cards) > 0) and
-      ((start_time - self.yellow_cards[0]).days > yellow_card_max_age)):
-      self.yellow_cards.popleft()
+    start_time = datetime.datetime.utcnow()    
     
-    while ((len(self.red_cards) > 0) and
-      ((start_time - self.red_cards[0]).days > red_card_max_age)):
-      self.red_cards.popleft()
-  
-  def format_counters(self, yellow_card_limit, red_card_limit):
-    format_string = 'yellow (' + `len(self.yellow_cards)` + ' / ' 
-    format_string += `yellow_card_limit` + ') red ('
-    format_string += `len(self.red_cards)` + ' / ' + `red_card_limit` + ')'
+    for card in self.penalty_dict.keys():
+      penalty_obj = self.penalty_dict[card]
+      while ((len(penalty_obj) > 0) and
+        ((start_time - penalty_obj[0]).days > card_dict[card].max_age)):
+        penalty_obj.popleft()
+      
+  def format_counters(self, card_dict):
+    #Return a formatted string with card totals for this nick
+    format_string = ''
+    
+    for card in card_dict.keys():
+      format_string += card + ' (' + `self.get_penalty_count(card)` + ' / ' 
+      format_string += `card_dict[card].limit` + ') '
+    
     return format_string
   
   def parse_message (self, message):
+    #Store message with timestamp as tuple in queue
     self.parent.logger.debug (self.nick + ' : ' + message)
     self.messages.append((datetime.datetime.utcnow(),message))    
     self.clean_message_queue()
@@ -67,20 +73,20 @@ class IRC_Nick:
   def get_messages (self):
     return self.messages
   
-  def add_yellow (self):
-    self.yellow_cards.append(datetime.datetime.utcnow())
+  def add_penalty (self, card):
+    #Create penalty queue if required for card color, add an entry timestamp
+    if not self.penalty_dict.has_key(card):
+      self.penalty_dict[card] = deque()
+    self.penalty_dict[card].append(datetime.datetime.utcnow())
   
-  def get_yellow_count (self):
-    return len(self.yellow_cards)
+  def get_penalty_count (self, card):
+    #If this color has accumulated cards, add to the counter
+    if self.penalty_dict.has_key(card):
+      return len(self.penalty_dict[card])
+    return 0
   
-  def clear_yellow (self):
-    self.yellow_cards.clear()
-    
-  def add_red (self):
-    self.red_cards.append(datetime.datetime.utcnow())
+  def clear_penalty (self, card):
+    #Reset the penalties for this card color
+    if self.penalty_dict.has_key(card):
+      self.penalty_dict[card].clear()
   
-  def get_red_count (self):
-    return len(self.red_cards)
-  
-  def clear_red (self):
-    self.red_cards.clear()
